@@ -2,6 +2,7 @@ package openstack
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	"github.com/ncw/swift"
@@ -12,7 +13,7 @@ import (
 
 	"strings"
 
-	"github.com/cloudfoundry-incubator/bits-service"
+	bitsgo "github.com/cloudfoundry-incubator/bits-service"
 	"github.com/cloudfoundry-incubator/bits-service/blobstores/validate"
 	"github.com/cloudfoundry-incubator/bits-service/config"
 	"github.com/cloudfoundry-incubator/bits-service/logger"
@@ -157,20 +158,47 @@ func (blobstore *Blobstore) DeleteDir(prefix string) error {
 	if e != nil {
 		return errors.Wrapf(e, "Container: '%v', prefix: '%v'", blobstore.containerName, prefix)
 	}
-	deletionErrs := []error{}
-	for _, name := range names {
-		e = blobstore.Delete(name)
-		if e != nil {
-			if !bitsgo.IsNotFoundError(e) {
-				deletionErrs = append(deletionErrs, e)
-			}
-		}
-	}
+
+	deletionErrs := DeleteInParallel(names, func(name string) error {
+		return blobstore.Delete(name)
+	})
+
 	if len(deletionErrs) != 0 {
 		return errors.Errorf("Prefix '%v', errors from deleting: %v", prefix, deletionErrs)
 	}
 
 	return nil
+}
+
+func DeleteInParallel(names []string, deletetionFunc func(name string) error) []error {
+	deletionErrs := []error{}
+	errChan := make(chan error)
+
+	go func() {
+		for e := range errChan {
+			deletionErrs = append(deletionErrs, e)
+		}
+	}()
+
+	var wg sync.WaitGroup
+	for _, name := range names {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+
+			e := deletetionFunc(name)
+			if e != nil {
+				if !bitsgo.IsNotFoundError(e) {
+					errChan <- e
+				}
+			}
+		}(name)
+	}
+
+	wg.Wait()
+
+	close(errChan)
+	return deletionErrs
 }
 
 func (blobstore *Blobstore) Sign(resource string, method string, expirationTime time.Time) (signedURL string) {

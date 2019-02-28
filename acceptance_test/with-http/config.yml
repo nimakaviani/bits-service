@@ -30,3 +30,8 @@ signing_users:
 metrics_log_destination: /tmp/bitsgo_metrics.log
 enable_http: true
 http_port: 8888
+enable_registry: true
+rootfs:
+  blobstore_type: local
+  local_config:
+    path_prefix: /tmp/eirinifs

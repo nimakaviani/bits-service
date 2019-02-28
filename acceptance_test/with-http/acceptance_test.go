@@ -24,6 +24,11 @@ func TestEndToEnd(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 
 	BeforeSuite(func() {
+		err := os.MkdirAll("/tmp/eirinifs/assets", 0755)
+		Ω(err).ShouldNot(HaveOccurred())
+		file, err := os.Create("/tmp/eirinifs/assets/eirinifs.tar")
+		Ω(err).ShouldNot(HaveOccurred())
+		file.Close()
 		session = acceptance.StartServer("config.yml")
 		client = &http.Client{}
 	})

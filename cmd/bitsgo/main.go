@@ -93,10 +93,8 @@ func main() {
 		),
 		bitsgo.NewResourceHandler(buildpackBlobstore, appStashBlobstore, "buildpack", metricsService, config.Buildpacks.MaxBodySizeBytes(), config.ShouldProxyGetRequests),
 		bitsgo.NewResourceHandler(dropletBlobstore, appStashBlobstore, "droplet", metricsService, config.Droplets.MaxBodySizeBytes(), config.ShouldProxyGetRequests),
-		bitsgo.NewResourceHandler(buildpackCacheBlobstore, appStashBlobstore, "buildpack_cache", metricsService, config.BuildpackCache.MaxBodySizeBytes(), config.ShouldProxyGetRequests))
-
-	if config.EnableRegistry {
-		routes.AddImageHandler(handler, &oci_registry.ImageHandler{
+		bitsgo.NewResourceHandler(buildpackCacheBlobstore, appStashBlobstore, "buildpack_cache", metricsService, config.BuildpackCache.MaxBodySizeBytes(), config.ShouldProxyGetRequests),
+		&oci_registry.ImageHandler{
 			ImageManager: oci_registry.NewBitsImageManager(
 				createRootFSBlobstore(config.RootFS),
 				dropletBlobstore,
@@ -106,8 +104,8 @@ func main() {
 				// are easily distinguishable from their paths in the blobstore.
 				dropletBlobstore,
 			),
-		})
-	}
+		},
+		config.EnableRegistry)
 
 	address := os.Getenv("BITS_LISTEN_ADDR")
 	if address == "" {

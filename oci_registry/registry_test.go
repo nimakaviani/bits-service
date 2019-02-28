@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/bits-service/blobstores/inmemory"
 	"github.com/cloudfoundry-incubator/bits-service/oci_registry"
+	"github.com/cloudfoundry-incubator/bits-service/routes"
 
 	"github.com/gorilla/mux"
 	. "github.com/onsi/ginkgo"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/bits-service"
 	"github.com/cloudfoundry-incubator/bits-service/middlewares"
-	"github.com/cloudfoundry-incubator/bits-service/routes"
 )
 
 var _ = Describe("Registry", func() {
@@ -40,7 +40,7 @@ var _ = Describe("Registry", func() {
 		imageManager := oci_registry.NewBitsImageManager(rootFSBlobstore, dropletBlobstore, digestLookupStore)
 		router := mux.NewRouter()
 
-		routes.AddImageHandler(router, &oci_registry.ImageHandler{
+		routes.SetupRegistryRoutes(router, &oci_registry.ImageHandler{
 			ImageManager: imageManager,
 		})
 		fakeServer = httptest.NewServer(negroni.New(

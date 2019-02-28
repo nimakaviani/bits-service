@@ -1,9 +1,10 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
-	"github.com/cloudfoundry-incubator/bits-service"
+	bitsgo "github.com/cloudfoundry-incubator/bits-service"
 	"github.com/cloudfoundry-incubator/bits-service/middlewares"
 	registry "github.com/cloudfoundry-incubator/bits-service/oci_registry"
 	"github.com/cloudfoundry-incubator/bits-service/util"
@@ -19,7 +20,7 @@ func SetUpAllRoutes(privateHost, publicHost string, basicAuthMiddleware *middlew
 	signBuildpackCacheURLHandler,
 	signAppStashURLHandler *bitsgo.SignResourceHandler,
 	appstashHandler *bitsgo.AppStashHandler,
-	packageHandler, buildpackHandler, dropletHandler, buildpackCacheHandler *bitsgo.ResourceHandler) *mux.Router {
+	packageHandler, buildpackHandler, dropletHandler, buildpackCacheHandler *bitsgo.ResourceHandler, registryHandler *registry.ImageHandler, registryEnabled bool) *mux.Router {
 
 	rootRouter := mux.NewRouter()
 
@@ -50,6 +51,16 @@ func SetUpAllRoutes(privateHost, publicHost string, basicAuthMiddleware *middlew
 		w.WriteHeader(http.StatusBadRequest)
 		util.FprintDescriptionAsJSON(w, "Invalid host '%v'. External clients should use hostname '%v.'", r.Host, publicHost)
 	})
+
+	// registryRouter := mux.NewRouter()
+	// // fmt.Printf("publicHost %s", publicHost)
+	// //"registry.127.0.0.1.nip.io"
+	// rootRouter.Host(fmt.Sprintf("registry.127.0.0.1.nip.io")).Handler(negroni.New(
+	// 	negroni.Wrap(registryRouter),
+	// ))
+	if registryEnabled {
+		SetupRegistryRoutes(internalRouter, registryHandler)
+	}
 
 	return rootRouter
 }
@@ -139,13 +150,33 @@ func delegateWithQueryParamsExtractedTo(delegate func(http.ResponseWriter, *http
 	}
 }
 
-func AddImageHandler(rootRouter *mux.Router, handler *registry.ImageHandler) {
-	ociRouter := mux.NewRouter()
-	rootRouter.PathPrefix("/v2").Handler(ociRouter)
+// func AddImageHandler(rootRouter *mux.Router, handler *registry.ImageHandler) {
+// 	ociRouter := mux.NewRouter()
+// 	rootRouter.PathPrefix("/v2").Handler(ociRouter)
 
-	ociRouter.Path("/v2").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
-	ociRouter.Path("/v2/").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
-	ociRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
-	ociRouter.Path("/v2/{space}/{name}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
-	ociRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/blobs/{digest}").Methods(http.MethodGet).HandlerFunc(handler.ServeLayer)
+// 	ociRouter.Path("/v2").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
+// 	ociRouter.Path("/v2/").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
+// 	ociRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
+// 	ociRouter.Path("/v2/{space}/{name}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
+// 	ociRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/blobs/{digest}").Methods(http.MethodGet).HandlerFunc(handler.ServeLayer)
+// }
+
+func SetupRegistryRoutes(rootRouter *mux.Router, handler *registry.ImageHandler) {
+
+	fmt.Printf("NS_DEBUG: router %v\n", rootRouter.Walk(gorillaWalkFn))
+	// rootRouter.PathPrefix("/v2")
+
+	rootRouter.Path("/v2").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
+	rootRouter.Path("/v2/").Methods(http.MethodGet).HandlerFunc(handler.ServeAPIVersion)
+	rootRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
+	rootRouter.Path("/v2/{space}/{name}/manifests/{tag}").Methods(http.MethodGet).HandlerFunc(handler.ServeManifest)
+	rootRouter.Path("/v2/{name:[a-z0-9/\\.\\-_]+}/blobs/{digest}").Methods(http.MethodGet).HandlerFunc(handler.ServeLayer)
+	fmt.Printf("NS_DEBUG: router %v", rootRouter.Walk(gorillaWalkFn))
+}
+
+func gorillaWalkFn(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+
+	currentPath, _ := route.GetPathTemplate()
+	fmt.Printf("NS_DEBUG: path %v\n", currentPath)
+	return nil
 }
